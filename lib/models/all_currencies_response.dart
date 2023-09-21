@@ -1,7 +1,9 @@
 import 'dart:convert';
 
-Map<String, String> allCurrenciesFromJson(String str) =>
-    Map.from(json.decode(str)).map((k, v) => MapEntry<String, String>(k, v));
+import 'package:currency_converter/models/Currency.dart';
 
-String allCurrenciesToJson(Map<String, String> data) =>
-    json.encode(Map.from(data).map((k, v) => MapEntry<String, String>(k, v)));
+List<Currency> currencyListFromJson(String str) =>
+    Map<String, String>.from(json.decode(str))
+        .entries
+        .map<Currency>((e) => Currency(name: e.value, shortName: e.key))
+        .toList();

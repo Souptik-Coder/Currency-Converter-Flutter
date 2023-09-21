@@ -1,9 +1,14 @@
-import 'package:currency_converter/models/rates_model.dart';
+import 'package:currency_converter/provider/currency_selection_provider.dart';
+import 'package:currency_converter/provider/currency_data_provider.dart';
+import 'package:currency_converter/utils/utils.dart' as utils;
 import 'package:currency_converter/widgets/currency_data_input_form.dart';
 import 'package:flutter/material.dart';
-import 'package:currency_converter/services/fetch_data.dart';
+import 'package:provider/provider.dart';
+import '../select_currency/select_currency_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  static const String route = '/';
+
   const HomeScreen({super.key});
 
   @override
@@ -11,151 +16,200 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<Map<String, String>> currenciesFuture;
-  late Future<RatesModel> exchangeRatesFuture;
-  late Future<List<Object>> allFutures;
-  String selectedFromCurrency = "USD";
-  String selectedToCurrency = "INR";
-  String amount = "";
-
   @override
   void initState() {
     super.initState();
-    setState(() {
-      currenciesFuture = getCurrencies();
-      exchangeRatesFuture = getUSDToAnyExchangeRates();
-      allFutures = Future.wait([currenciesFuture, exchangeRatesFuture]);
-    });
+    Provider.of<CurrencyDataProvider>(context, listen: false).getAllData();
   }
 
   @override
   Widget build(BuildContext context) {
+    var data = context.watch<CurrencyDataProvider>();
     return Scaffold(
       appBar: null,
       body: SafeArea(
-        child: FutureBuilder(
-          future: allFutures,
-          builder: (ctx, AsyncSnapshot<List<Object>> snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
-            } else {
-              var currencies = snapshot.data?[0] as Map<String, String>;
-              var exchangeRates = snapshot.data?[1] as RatesModel;
-              return Container(
-                padding: const EdgeInsets.only(top: 30.0),
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [Colors.white30, Colors.blue.shade50],
-                    center: Alignment.topRight,
-                    radius: 1,
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    children: <Widget>[
-                      const Text(
-                        'Currency Converter',
-                        style: TextStyle(
-                            fontSize: 22.0,
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      const Text(
-                        'Check live exchange rates and convert currencies',
-                      ),
-                      Card(
-                        margin: const EdgeInsets.all(16.0),
-                        color: Colors.white,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            children: [
-                              CurrencyDataInputForm(
-                                title: 'Amount',
-                                isInputEnabled: true,
-                                selectedCurrency: selectedFromCurrency,
-                                currencies: currencies,
-                                onCurrencyChange: (currency) {
-                                  setState(() {
-                                    selectedFromCurrency = currency;
-                                  });
-                                },
-                                onInputChanged: (val) {
-                                  setState(() {
-                                    amount = val;
-                                  });
-                                },
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Divider(
-                                      thickness: 1.0,
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  const SizedBox(
-                                    width: 10.0,
-                                  ),
-                                  IconButton.filled(
-                                    onPressed: () {
-                                      setState(() {
-                                        var temp = selectedFromCurrency;
-                                        selectedFromCurrency =
-                                            selectedToCurrency;
-                                        selectedToCurrency = temp;
-                                      });
-                                    },
-                                    icon: const Icon(Icons.swap_vert),
-                                  ),
-                                  const SizedBox(
-                                    width: 10.0,
-                                  ),
-                                  Expanded(
-                                    child: Divider(
-                                      thickness: 1.0,
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              CurrencyDataInputForm(
-                                title: 'Converted Amount',
-                                isInputEnabled: false,
-                                selectedCurrency: selectedToCurrency,
-                                currencies: currencies,
-                                val: convertAnyToAny(
-                                    exchangeRates.rates,
-                                    amount,
-                                    selectedFromCurrency,
-                                    selectedToCurrency),
-                                onCurrencyChange: (currency) {
-                                  setState(() {
-                                    selectedToCurrency = currency;
-                                  });
-                                },
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '1 $selectedFromCurrency = ${convertAnyToAny(exchangeRates.rates, "1", selectedFromCurrency, selectedToCurrency)} $selectedToCurrency',
-                        style: const TextStyle(
-                          fontSize: 18.0,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-              );
-            }
-          },
+        child: Container(
+          padding: const EdgeInsets.only(top: 30.0),
+          decoration: BoxDecoration(
+              gradient: RadialGradient(
+            colors: [Colors.white30, Colors.blue.shade50],
+            center: Alignment.topLeft,
+            radius: 1.0,
+          )),
+          child: Center(
+            child: Builder(builder: (context) {
+              if (data.isLoading) {
+                return _buildLoading();
+              } else if (data.errorMsg != null) {
+                return _buildError(data.errorMsg!);
+              } else {
+                return _buildChild(data);
+              }
+            }),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildChild(CurrencyDataProvider data) {
+    var exchangeRates = data.exchangeRates;
+    return Column(
+      children: <Widget>[
+        const Text(
+          'Currency Converter',
+          style: TextStyle(
+            fontSize: 22.0,
+            color: Colors.black54,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Text(
+          'Check live exchange rates and convert currencies',
+        ),
+        const SizedBox(height: 35.0),
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          elevation: 3.0,
+          margin: const EdgeInsets.symmetric(horizontal: 16.0),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              children: [
+                Consumer<CurrencySelectionProvider>(
+                  builder: (context, selections, child) =>
+                      CurrencyDataInputForm(
+                    title: 'Amount',
+                    isInputEnabled: true,
+                    selectedCurrency: selections.selectedFromCurrency,
+                    onCurrencySelection: () {
+                      Provider.of<CurrencySelectionProvider>(context,
+                              listen: false)
+                          .updatingCurrencyType = CurrencyInputType.from;
+                      Navigator.pushNamed(
+                        context,
+                        SelectCurrencyScreen.route,
+                      );
+                    },
+                    onInputChanged: (val) {
+                      selections.amount = val;
+                    },
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        thickness: 1.0,
+                        color: Colors.grey.shade300,
+                      ),
+                    ),
+                    const SizedBox(
+                      width: 10.0,
+                    ),
+                    IconButton.filled(
+                      onPressed: () {
+                        Provider.of<CurrencySelectionProvider>(context,
+                                listen: false)
+                            .swapFromAndTo();
+                      },
+                      icon: const Icon(Icons.swap_vert),
+                    ),
+                    const SizedBox(
+                      width: 10.0,
+                    ),
+                    Expanded(
+                      child: Divider(
+                        thickness: 1.0,
+                        color: Colors.grey.shade300,
+                      ),
+                    ),
+                  ],
+                ),
+                Consumer<CurrencySelectionProvider>(
+                  builder: (context, selections, child) =>
+                      CurrencyDataInputForm(
+                    title: 'Converted Amount',
+                    val: utils.convertAnyToAny(
+                        exchangeRates,
+                        selections.amount,
+                        selections.selectedFromCurrency,
+                        selections.selectedToCurrency),
+                    isInputEnabled: false,
+                    selectedCurrency: selections.selectedToCurrency,
+                    onCurrencySelection: () {
+                      Provider.of<CurrencySelectionProvider>(context,
+                              listen: false)
+                          .updatingCurrencyType = CurrencyInputType.to;
+                      Navigator.pushNamed(
+                        context,
+                        SelectCurrencyScreen.route,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20.0),
+        const Text("Exchange Rates"),
+        Consumer<CurrencySelectionProvider>(
+          builder: (context, selections, child) {
+            return Text(
+              '1 ${selections.selectedFromCurrency} = ${utils.convertAnyToAny(exchangeRates, "1", selections.selectedFromCurrency, selections.selectedToCurrency)} ${selections.selectedToCurrency}',
+              style: const TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          },
+        )
+      ],
+    );
+  }
+
+  Widget _buildLoading() {
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        CircularProgressIndicator(),
+        SizedBox(height: 16.0),
+        Text("Getting latest exchange rates")
+      ],
+    );
+  }
+
+  Widget _buildError(String errorMsg) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          errorMsg,
+          style: const TextStyle(
+            fontSize: 16.0,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 16.0),
+        ElevatedButton(
+          onPressed: () =>
+              Provider.of<CurrencyDataProvider>(context, listen: false)
+                  .getAllData(),
+          child: const Text(
+            "Retry",
+            style: TextStyle(
+              fontSize: 16.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        )
+      ],
     );
   }
 }
