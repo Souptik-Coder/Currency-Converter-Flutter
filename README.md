@@ -11,4 +11,4 @@ This is a currency converter app made using Flutter and Provider state managemen
 
 * provider : Provides a simple and scalable way to manage app state using the provider pattern.
 * http : Makes it easy to perform HTTP requests and handle responses.
-* shared_preferences: It hepls to store last  stores key-value paires
+* shared_preferences:  Provides a persistent storage for simple data in key-value pairs
